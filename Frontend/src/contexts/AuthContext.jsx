@@ -2,10 +2,12 @@ import { createContext, useContext, useState, useEffect } from "react";
 import {
   GoogleAuthProvider,
   signInWithPopup,
-  signOut,
+  signOut as firebaseSignOut,
   onAuthStateChanged,
+  getIdToken,
 } from "firebase/auth";
 import { auth } from "../config/firebase";
+import MongoDBService from "../services/mongodb";
 
 const AuthContext = createContext();
 
@@ -28,17 +30,54 @@ export const AuthProvider = ({ children }) => {
     console.log("Setting up auth state listener");
     const unsubscribe = onAuthStateChanged(
       auth,
-      (user) => {
+      async (user) => {
         console.log("Auth state changed:", user);
         if (user) {
-          setUser({
-            uid: user.uid,
-            name: user.displayName,
-            email: user.email,
-            photoURL: user.photoURL,
-          });
+          try {
+            // Get the Firebase ID token
+            const token = await getIdToken(user);
+            console.log("Got ID token:", token.substring(0, 10) + "...");
+
+            // Store the token for API requests
+            MongoDBService.setAuthToken(token);
+
+            // Set user info
+            setUser({
+              uid: user.uid,
+              name: user.displayName,
+              email: user.email,
+              photoURL: user.photoURL,
+            });
+
+            try {
+              console.log(
+                "Attempting to fetch favorites from MongoDB with user ID:",
+                user.uid
+              );
+              const favoritesArray = await MongoDBService.getFavorites();
+              console.log("Favorites received from MongoDB:", favoritesArray);
+              setFavorites(new Set(favoritesArray));
+            } catch (err) {
+              console.error("Error fetching favorites:", err);
+              console.error(
+                "Error details:",
+                err.response?.data || err.message
+              );
+
+              // If API fails, try loading from sessionStorage as fallback
+              const storedFavorites = sessionStorage.getItem("favorites");
+              if (storedFavorites) {
+                console.log("Using favorites from sessionStorage as fallback");
+                setFavorites(new Set(JSON.parse(storedFavorites)));
+              }
+            }
+          } catch (error) {
+            console.error("Error getting user token:", error);
+          }
         } else {
           setUser(null);
+          setFavorites(new Set());
+          MongoDBService.setAuthToken(null);
         }
         setLoading(false);
       },
@@ -55,31 +94,13 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // Load session data on mount
+  // Save favorites to sessionStorage
   useEffect(() => {
-    const loadSession = () => {
-      try {
-        console.log("Loading favorites from session storage");
-        const storedFavorites = sessionStorage.getItem("favorites");
-        if (storedFavorites) {
-          setFavorites(new Set(JSON.parse(storedFavorites)));
-        }
-      } catch (error) {
-        console.error("Error loading favorites:", error);
-        setError("Failed to load favorites");
-      }
-    };
-
-    loadSession();
-  }, []);
-
-  // Save favorites when they change
-  useEffect(() => {
+    // Only use session storage as a fallback/backup
     if (favorites.size > 0) {
-      console.log("Saving favorites to session storage:", [...favorites]);
+      console.log("Backing up favorites to session storage (fallback only)");
       sessionStorage.setItem("favorites", JSON.stringify([...favorites]));
     } else {
-      console.log("Clearing favorites from session storage");
       sessionStorage.removeItem("favorites");
     }
   }, [favorites]);
@@ -91,16 +112,23 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
 
       const provider = new GoogleAuthProvider();
+      console.log("Created GoogleAuthProvider");
+
+      // Try with minimal parameters
       provider.setCustomParameters({
         prompt: "select_account",
-        login_hint: "",
       });
+      console.log("Set custom parameters");
 
-      // Add a small delay to ensure the popup isn't blocked
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
+      console.log("About to open sign-in popup");
       const result = await signInWithPopup(auth, provider);
       console.log("Sign in successful:", result.user);
+
+      // Get the Firebase ID token
+      const token = await getIdToken(result.user);
+      console.log("Got ID token:", token.substring(0, 10) + "...");
+
+      MongoDBService.setAuthToken(token);
 
       setUser({
         uid: result.user.uid,
@@ -108,8 +136,13 @@ export const AuthProvider = ({ children }) => {
         email: result.user.email,
         photoURL: result.user.photoURL,
       });
+
+      console.log("User state updated after login");
     } catch (error) {
       console.error("Error signing in:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+
       if (error.code === "auth/popup-blocked") {
         setError("Please allow popups for this site to sign in");
       } else if (error.code === "auth/popup-closed-by-user") {
@@ -131,9 +164,10 @@ export const AuthProvider = ({ children }) => {
       console.log("Starting sign out process");
       setError(null);
       setLoading(true);
-      await signOut(auth);
+      await firebaseSignOut(auth);
       setFavorites(new Set());
       sessionStorage.clear();
+      MongoDBService.setAuthToken(null);
       console.log("Sign out successful");
     } catch (error) {
       console.error("Error signing out:", error);
@@ -143,7 +177,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const toggleFavorite = (countryCode) => {
+  const toggleFavorite = async (countryCode) => {
     if (!user) {
       console.log("Attempted to toggle favorite while not signed in");
       setError("Please sign in to add favorites");
@@ -151,6 +185,8 @@ export const AuthProvider = ({ children }) => {
     }
 
     console.log("Toggling favorite for country:", countryCode);
+
+    // Optimistically update UI
     setFavorites((prevFavorites) => {
       const newFavorites = new Set(prevFavorites);
       if (newFavorites.has(countryCode)) {
@@ -160,6 +196,28 @@ export const AuthProvider = ({ children }) => {
       }
       return newFavorites;
     });
+
+    // Update database - THIS PART IS CRUCIAL
+    try {
+      console.log("Sending toggle request to backend API");
+      const response = await MongoDBService.toggleFavorite(countryCode);
+      console.log("Toggle response from server:", response);
+    } catch (error) {
+      console.error("Error toggling favorite in database:", error);
+      console.error("Error details:", error.response?.data || error.message);
+      setError("Failed to update favorites. Please try again.");
+
+      // Revert the optimistic update on error
+      setFavorites((prevFavorites) => {
+        const newFavorites = new Set(prevFavorites);
+        if (newFavorites.has(countryCode)) {
+          newFavorites.delete(countryCode);
+        } else {
+          newFavorites.add(countryCode);
+        }
+        return newFavorites;
+      });
+    }
   };
 
   const value = {
