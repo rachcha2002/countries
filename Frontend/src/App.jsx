@@ -13,6 +13,7 @@ import {
   Menu,
   MenuItem,
   useMediaQuery,
+  Divider,
 } from "@mui/material";
 import {
   Home as HomeIcon,
@@ -25,6 +26,7 @@ import Home from "./components/Countries/Home";
 import CountryDetail from "./components/Countries/CountryDetail";
 import Favorites from "./components/Countries/Favorites";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import logoImage from "./assets/logo.png";
 
 const AppContent = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -145,7 +147,12 @@ const AppContent = () => {
                 gap: 1,
               }}
             >
-              <HomeIcon />
+              <img
+                src={logoImage}
+                alt="World Explorer Logo"
+                height="40"
+                style={{ marginRight: "10px" }}
+              />
               Countries Explorer
             </Typography>
             <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
@@ -185,9 +192,13 @@ const AppContent = () => {
               >
                 {user ? (
                   <Avatar
-                    src={user.imageUrl}
+                    src={user.photoURL}
                     alt={user.name}
-                    sx={{ width: 32, height: 32 }}
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      border: "2px solid white", // Optional: adds a white border around the avatar
+                    }}
                   />
                 ) : (
                   <AccountIcon />
@@ -199,7 +210,34 @@ const AppContent = () => {
                 onClose={handleClose}
               >
                 {user ? (
-                  <MenuItem onClick={handleSignOut}>Sign Out</MenuItem>
+                  <>
+                    <MenuItem sx={{ pointerEvents: "none" }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          p: 1,
+                        }}
+                      >
+                        <Avatar
+                          src={user.photoURL}
+                          alt={user.name}
+                          sx={{ width: 40, height: 40 }}
+                        />
+                        <Box>
+                          <Typography variant="subtitle1">
+                            {user.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {user.email}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </MenuItem>
+                    <Divider />
+                    <MenuItem onClick={handleSignOut}>Sign Out</MenuItem>
+                  </>
                 ) : (
                   <MenuItem onClick={signIn}>Sign In with Google</MenuItem>
                 )}
