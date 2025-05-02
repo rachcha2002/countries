@@ -497,7 +497,11 @@ const Home = () => {
             sx={{
               width: { xs: "100%", sm: "300px" },
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "white",
+                backgroundColor: "background.paper",
+              },
+              "& .MuiInputBase-input::placeholder": {
+                color: "text.secondary",
+                opacity: 0.7,
               },
             }}
             InputProps={{
@@ -517,7 +521,11 @@ const Home = () => {
             sx={{
               width: { xs: "100%", sm: "200px" },
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "white",
+                backgroundColor: "background.paper",
+              },
+              "& .MuiInputBase-input::placeholder": {
+                color: "text.secondary",
+                opacity: 0.7,
               },
             }}
             displayEmpty
@@ -547,7 +555,11 @@ const Home = () => {
             sx={{
               width: { xs: "100%", sm: "200px" },
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "white",
+                backgroundColor: "background.paper",
+              },
+              "& .MuiInputBase-input::placeholder": {
+                color: "text.secondary",
+                opacity: 0.7,
               },
             }}
             displayEmpty
@@ -577,7 +589,11 @@ const Home = () => {
             sx={{
               width: { xs: "100%", sm: "200px" },
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "white",
+                backgroundColor: "background.paper",
+              },
+              "& .MuiInputBase-input::placeholder": {
+                color: "text.secondary",
+                opacity: 0.7,
               },
             }}
             displayEmpty
@@ -607,7 +623,11 @@ const Home = () => {
             sx={{
               width: { xs: "100%", sm: "200px" },
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "white",
+                backgroundColor: "background.paper",
+              },
+              "& .MuiInputBase-input::placeholder": {
+                color: "text.secondary",
+                opacity: 0.7,
               },
             }}
             InputProps={{
@@ -696,6 +716,7 @@ const Home = () => {
                         transform: "scale(1.1)",
                       },
                     }}
+                    data-testid={`country-card-${country.cca3}`}
                   >
                     {user && (
                       <IconButton
@@ -713,6 +734,7 @@ const Home = () => {
                             backgroundColor: "rgba(255, 255, 255, 0.9)",
                           },
                         }}
+                        data-testid={`favorite-button-${country.cca3}`}
                       >
                         <FavoriteIcon
                           color={
